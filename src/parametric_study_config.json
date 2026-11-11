@@ -1,0 +1,74 @@
+{
+  // General study settings
+  "study_name": "parametric_study_final",
+  "output_dir": "E:/Koopman_paper_results",
+
+  // Data source configuration
+  "data_dir": "D:/fastmri/multicoil_train/",
+  "entries_json": "D:/Paper_reader_study_KAE/random_selected_files_mincoils16_v2.json",
+  "filename_tokens": ["T1POST", "T1PRE", "T1", "T2"],
+  // Choose which contrasts to include. Leave empty to include all matching files.
+  "include_contrasts": ["T1POST", "T1PRE", "T1", "T2"],
+  // Choose which contrasts to exclude. Leave empty to exclude none.
+  "exclude_contrasts": ["FLAIR"],
+  // Per-contrast lambda values used when a study is not sweeping lambda_s
+  "lambda_by_contrast": {
+    "T1POST": 0.16,
+    "T1PRE": 0.15,
+    "T1": 0.15,
+    "T2": 0.09,
+    "FLAIR": 0.12
+  },
+  "min_coils": 15,
+
+  // Slice selection
+  // Set to true to process all available slices for each selected file.
+  // If false, use slice_list below.
+  "all_slices": false,
+  "slice_list": [0, 4, 8, 12],
+
+  // Methods to run
+  // Use ["grappa", "kae"] to test both methods.
+  // Use ["kae"] to test only the KAE model.
+  "methods": ["grappa", "raki", "kae"],
+
+  // Base reconstruction settings
+  "base_r": 4,
+  "base_number_columns": 40,
+  "base_kernel": "5x4",
+  "base_reduc_d": 0.8,
+  "base_lambda_s": 0.12,
+  "epochs": 4000,
+  "device": "cuda",
+
+  // Optional custom directory for saved KAE weights
+  "weights_dir": "E:/Koopman_paper_results/parametric_study_final/KAE_weights/",
+  "raki_weights_dir": "E:/Koopman_paper_results/parametric_study_final/RAKI_weights/",
+ 
+  // List of parameter studies to run
+  "studies": [
+    //   {
+    //   // Example: sweep over ACS lines count
+    //   "type": "number_columns",
+    //   "values": [24, 30, 40]
+    // },
+    {
+      // Example: sweep over dimensionality reduction factor
+      "type": "reduc_d",
+      // "values": [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+      "values": [1.2, 1.4, 1.6, 1.8, 2.0]
+    },
+    {
+      // Example: sweep over kernel sizes
+      "type": "kernel",
+      "values": ["5x2", "5x4", "5x6", "3x4", "7x4", "9x4"]
+
+    },
+    {
+      // Example: sweep over lambda_s values for KAE
+      "type": "lambda_s",
+      "values": [0.0, 0.05, 0.1, 0.12, 0.2, 0.4, 0.7, 1.0]
+    }
+
+  ]
+}
