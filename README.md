@@ -1,32 +1,36 @@
-# Scan-specific k-space interpolation using deep Koopman autoencoders
+# Scan-specific k-space interpolation with deep Koopman autoencoders
 
-This repository implements a scan-specific, interpretable k-space interpolation technique for the reconstruction of accelerated MRI data using deep Koopman autoencoder. The project contains data pre- and post-processing, baseline reconstruction methods, model training, and quantitative evaluation in a single reproducible pipeline.
+This repository implements a scan-specific, interpretable k-space interpolation technique for the reconstruction of accelerated MRI data. The code loads fully sampled k-space data, retrospectively undersamples it, compares baseline reconstructions, trains a Koopman model, and saves quantitative results.
 
-The primary execution entrypoint is `main.py`, which orchestrates data loading, baseline comparisons, model training, reconstruction, and result saving.
+The main entry point is `main.py`. It orchestrates data loading, baseline reconstruction, Koopman training/inference, and result export.
 
-## Overview
+## What the project does
 
-The repository was designed for accelerated MRI reconstruction, the code and data example 
-undersampled k-space data. The pipeline includes:
+- loads fastMRI-style multicoil `.h5` data from the `data/` folder
+- applies retrospective undersampling and ACS-based training logic
+- computes GRAPPA and RAKI baseline reconstructions
+- trains or loads a scan-specific Koopman autoencoder from undersampled k-space data
+- reconstructs the missing k-space lines and converts them back to image space
+- saves metrics and visual comparisons under `results/`
 
-- preprocessing and postprocessing from k-space to image domain
-- GRAPPA and RAKI baseline reconstructions
-- Koopman autoencoder training and inference
-- quantitative evaluation using NRMSE and SSIM-based metrics
-- saving of trained weights and reconstructed outputs
+## Evaluation protocol
 
-The project is tailored for NYU fastMRI datasets and can be extended to additional acquisition settings and contrasts.
+- Quantitative evaluation includes NRMSE, SSIM, and PSNR.
+- These metrics are computed on a foreground mask estimated from the absolute ground-truth image with the triangle thresholding method (`skimage.filters.threshold_triangle`) to avoid bias from noisy background.
+- This masking is used because the Koopman reconstruction acts as a denoiser, and a global metric on the full image would otherwise be strongly influenced by noise in the reference.
+- RAKI is trained for each multicoil k-space acquisition.
+- The Koopman autoencoder is trained as a single scan-specific model to reconstruct the undersampled multi-coil k-space.
 
-## Repository Structure
+## Repository structure
 
 ```text
 koopman-autoencoder-mri-reconstruction/
-├── main.py                             # main execution script and project orchestration
-├── comparison.py                       # comparison and evaluation workflow
-├── README.md                           # project documentation
-├── data/                               # input MRI data files (.h5)
-├── results/                            # experiment outputs and generated images
-├── weights/                            # trained model weights
+├── main.py                     # main execution script
+├── README.md                   # project documentation
+├── requirements.txt            # Python dependencies
+├── data/                       # fastMRI-like HDF5 files
+├── results/                    # visual outputs and comparison CSVs
+├── weights/                    # trained model checkpoints
 │   ├── koopman/
 │   └── raki/
 ├── helpers/
@@ -45,168 +49,72 @@ koopman-autoencoder-mri-reconstruction/
 │       ├── networks.py
 │       ├── training.py
 │       └── run_koopman.py
+├── notebooks/
 ├── investigations/
-│   ├── comparison.py
-│   ├── results/
-│   └── runs/
 ├── hyperparameter_search/
 ├── optuna_results/
-└── notebooks/
-    ├── eda/
-    ├── model_experiments/
-    └── results/
+└── docs/
 ```
 
-## Main Script
+## Data requirements
 
-The script `main.py` is the central execution module. It performs the following operations:
+The raw dataset is not bundled in this repository. To use the project, you must request access to the official fastMRI dataset and download a licensed `.h5` file from the [fastMRI portal](https://fastmri.med.nyu.edu/).
 
-1. Configures the project root and environment variables for portability.
-2. Loads MRI data from the dataset directory.
-3. Builds baseline reconstructions with GRAPPA and RAKI.
-4. Trains or loads a Koopman autoencoder model on each slice.
-5. Saves trained model weights to the appropriate folders.
-6. Produces reconstructed image outputs and evaluation summaries.
-7. Stores comparison statistics and visual outputs under `results/`.
+### fastMRI access and setup
 
-The execution flow is organized around the following functions:
+1. Register and request authorization on the official [fastMRI portal](https://fastmri.med.nyu.edu/).
+2. Download a representative fully sampled file, for example `file_brain_AXFLAIR_200_6002469.h5`.
+3. Place it in the local `data/` directory at the root of the project:
 
-- `train_run_baseline(...)`: runs the baseline methods and saves reconstruction outputs.
-- `orchestra(...)`: iterates over files and slices for the baseline pipeline.
-- `run_koopman_experiments(...)`: launches the Koopman-based reconstruction workflow.
-- `_orchestra_experiments(...)`: trains or loads the Koopman model per slice.
-- `evaluate_and_save_experiments(...)`: summarizes quantitative results and saves figures and CSV outputs.
+```text
+koopman-autoencoder-mri-reconstruction/
+└── data/
+    └── file_brain_AXFLAIR_200_6002469.h5
+```
 
-## Internal Modules
+4. In `main.py`, select the appropriate contrast parameter. For example, the project sets:
 
-### `src/KAE/`
+```python
+lambda_by_contrast = {
+    "AXT1POST": 0.16,
+    "AXT1PRE": 0.15,
+    "AXT1": 0.15,
+    "AXT2": 0.09,
+    "AXFLAIR": 0.12,
+}
+```
 
-This directory contains the Koopman-based reconstruction model and its training logic.
+and uses:
 
-- `networks.py`: defines the complex-valued Koopman autoencoder architecture and activation functions.
-- `training.py`: training loop, optimizer configuration, and learning logic.
-- `run_koopman.py`: data preparation, undersampling, reconstruction, and checkpoint handling.
+```python
+lambda_by_contrast['AXFLAIR']
+```
 
-### `baseline_models/`
+for the example AXLAIR dataset.
 
-This folder contains reference reconstruction methods used for comparison.
+## Installation
 
-- `GRAPPA/` and `GRAPPA_vectorized/`: implementation of the GRAPPA reconstruction baseline.
-- `RAKI/`: RAKI model training, inference, and weight export utilities.
-
-### `helpers/`
-
-This folder contains reusable utilities used across the project.
-
-- `downloaders/data_loaders.py`: loads `.h5` fastMRI-style files and crops coil data.
-- `preprocessing/preprocessing.py`: k-space and image-domain transformations.
-- `plots/plots.py`: plotting utilities, comparison layouts, and reconstruction visualization.
-- `utils/metrics.py`: NRMSE, SSIM, and summary metric computations.
-- `evaluate/metrics.py`: additional evaluation utilities.
-
-## Data Pipeline
-
-The input dataset is expected to be stored in the `data/` directory and formatted as multicoil k-space arrays in HDF5 format. Each file contains multiple slices, and the code processes each slice independently.
-
-The typical reconstruction pipeline is:
-
-1. Load a multicoil k-space volume.
-2. Apply calibration and undersampling logic.
-3. Generate training samples from the ACS region.
-4. Train the Koopman autoencoder or baseline model.
-5. Reconstruct the missing k-space lines.
-6. Convert reconstructed k-space to image-space for comparison.
-
-## Weights and Outputs
-
-### `weights/`
-
-This directory stores model checkpoints and learned parameters.
-
-- `weights/koopman/`: Koopman model checkpoints saved as `.pth` files.
-- `weights/raki/`: per-coil RAKI model weights.
-
-### `results/`
-
-This directory stores generated outputs, including:
-
-- reconstructed image plots
-- loss curves
-- comparison figures
-- CSV summaries of quantitative metrics
-
-## Installation and Environment Setup
-
-This repository is designed to be cloned and installed outside the original local workspace. The following procedure is suitable for a fresh machine or a clean environment.
-
-### 1. Prerequisites
+Requirements:
 
 - Python 3.12.11
-- pip
 - Git
-- A working CUDA-enabled environment is strongly recommended for training, but CPU execution is also possible for testing and debugging.
+- pip
+- PyTorch 2.8.0 with CUDA 12.6 support, as specified in `requirements.txt` for complex-valued neural-network operations
 
-This project was validated with Python 3.12.11 and its dependencies are managed through `requirements.txt`.
-
-### 2. Clone the repository
+Setup:
 
 ```bash
 git clone <repository-url>
 cd koopman-autoencoder-mri-reconstruction
-```
-
-### 3. Create a virtual environment
-
-On Linux or macOS:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-On Windows (PowerShell):
-
-```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
-
-### 4. Upgrade pip
-
-```bash
-python -m pip install --upgrade pip setuptools wheel
-```
-
-### 5. Install project dependencies
-
-Install all required packages directly from the repository requirements file:
-
-```bash
+# Linux / macOS
+source .venv/bin/activate
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-This project is configured to use the dependency set defined in `requirements.txt`. If a GPU is available and you want to use CUDA-optimized PyTorch, install the CUDA-compatible build from the official PyTorch website instead of the default CPU-only package.
-
-### 6. Optional: install the repository in editable mode
-
-```bash
-pip install -e .
-```
-
-If the repository does not provide a `setup.py` or `pyproject.toml`, this step can be skipped and the project can be run directly from the repository root.
-
-### 7. Prepare the data directory
-
-Create a `data/` folder and place the `.h5` MRI files inside it, or update the dataset path in the configuration variables in the execution scripts.
-
-```text
-koopman-autoencoder-mri-reconstruction/
-├── data/
-│   └── your_file.h5
-└── ...
-```
-
-### 8. Run the project
+## Run the project
 
 From the project root:
 
@@ -214,38 +122,29 @@ From the project root:
 python main.py
 ```
 
-For a comparison-only workflow:
+This script:
 
-```bash
-python comparison.py
-```
+1. loads the MRI data,
+2. runs the GRAPPA and RAKI baselines,
+3. trains or loads the Koopman autoencoder,
+4. saves reconstructions and metrics in `results/`,
+5. stores trained weights in `weights/`.
 
-## Dependencies
+## Outputs
 
-The project depends on the following Python libraries:
+- `results/`: plots, comparison figures, and CSV summaries
+- `weights/koopman/`: Koopman checkpoints
+- `weights/raki/`: RAKI weights
 
-- Python 3.10+
-- PyTorch
-- NumPy
-- pandas
-- matplotlib
-- h5py
-- scikit-image
 
-## Execution
 
-To run the main pipeline from the project root:
+## Acknowledgments
 
-```bash
-python main.py
-```
+[1] Griswold MA, Jakob PM, Heidemann RM, et al. Generalized autocalibrating partially parallel acquisitions (GRAPPA). Mag Res Med. 2002;47(6):1202–1210. doi: 10.1002/mrm.10171
 
-## Notes
+[2] Akçakaya, Mehmet et al. “Scan-specific robust artificial-neural-networks for k-space interpolation (RAKI) reconstruction: Database-free deep learning for fast imaging.” Magnetic Resonance in Medicine, vol. 81, no. 1, 2019, pp. 439–453. doi:10.1002/mrm.27420.
 
-- The repository is designed for reproducible experiments and supports saving results in a structured project-local directory.
-- The training pipeline explicitly saves weights to avoid repeated retraining when a matching model checkpoint already exists.
-- For scientific reproducibility, it is recommended to preserve the generated configuration, model checkpoints, and metric summaries together with the corresponding dataset version.
+[3] Knoll, Florian et al. “fastMRI: A Publicly Available Raw k-Space Dataset for Accelerated MRI Reconstruction Using Machine Learning.” Radiology: Artificial Intelligence, vol. 2, no. 1, 2020, e190007. doi:10.1148/ryai.2020190007.
 
-## Publication-Ready Summary
+[4] Zbontar, Jure et al. “fastMRI: An Open Dataset and Benchmarks for Accelerated MRI.” arXiv preprint arXiv:1811.08839, 2018. https://arxiv.org/abs/1811.08839.
 
-This work presents a multicoil MRI reconstruction approach based on a Koopman-inspired autoencoder trained on undersampled k-space data. The framework benchmarks the learned model against classical reconstruction baselines, including GRAPPA and RAKI, and evaluates performance using quantitative image quality metrics. The implementation is organized to enable controlled experimentation, model reuse, and reproducible result generation across slices and acquisition settings.
