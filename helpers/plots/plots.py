@@ -330,7 +330,7 @@ def mplot(images, names, window_perc=99.9, subfactor=1,
     else:
         raise ValueError("layout must be 'horizontal' or 'vertical'.")
 
-    vmin_img, vmax_img = dynamic_windowing(gt_img, window_perc)
+    vmin_img, vmax_img = dynamic_windowing(gt_img, plot_type="image", window_perc=window_perc)
     diff_images = [np.abs(gt_img - im) for im in plot_images]
     diff_max = np.percentile(np.concatenate([d.ravel() for d in diff_images]), window_perc)
     xbox, ybox = (box_size, box_size) if isinstance(box_size, int) else box_size
@@ -423,22 +423,24 @@ def plot_windowed_recon(data, gt_data=None, save_bool=False, filepath=None, save
     plt.close(fig)
 
 
-def dynamic_windowing(orig, plot_type = "kspace", window_perc = 99.9):    
+def dynamic_windowing(orig, plot_type="image", window_perc=99.9):
+    # Backward compatibility: some legacy calls used dynamic_windowing(img, 99.9)
+    if isinstance(plot_type, (int, float)):
+        window_perc = float(plot_type)
+        plot_type = "image"
+
     if plot_type == "image":
-        # Transform to image space
         ref_img = orig
-        vmin = 0
-        vmax = np.percentile(ref_img, window_perc)
+        vmin = 0.0
+        vmax = float(np.percentile(np.abs(ref_img), window_perc))
     elif plot_type == "kspace":
-        # Logic for k-space log-magnitude windowing
         ref_k = np.log10(np.abs(orig) + 1e-18)
-        vmin = np.percentile(ref_k, 1) # bottom 1%
-        vmax = np.percentile(ref_k, window_perc)
+        vmin = float(np.percentile(ref_k, 1))
+        vmax = float(np.percentile(ref_k, window_perc))
     else:
         raise ValueError(f"Unsupported plot-type: {plot_type}")
 
-    calc_window = (vmin, vmax)
-    return calc_window
+    return (vmin, vmax)
 
 def get_zoom_region(img, x, y, xbox_size, ybox_size):
     """Helper to extract zoom region."""

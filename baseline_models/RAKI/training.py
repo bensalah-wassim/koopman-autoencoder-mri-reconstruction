@@ -1,4 +1,5 @@
 # Import libraries
+import os
 import torch
 from torch.optim import Adam
 from tqdm import tqdm
@@ -165,7 +166,8 @@ def train_model(
     device="cuda",
     silent=False,
     save_bool=False,
-    save_path=None
+    save_path=None,
+    prefix="",
 ):
     torch.cuda.empty_cache()
     # Print model summary
@@ -218,10 +220,10 @@ def train_model(
         # Train with ACS liens
         log = trainer.train(calib=calib, coil=coil, R=R, early_stop=early_stop)
         if save_bool:
-            print("Model saved")
-            torch.save(
-                model.state_dict(), save_path+f"coil_{coil}.pth"
-                )
+            os.makedirs(save_path, exist_ok=True)
+            model_file = os.path.join(save_path, f"{prefix}coil_{coil}.pth")
+            print(f"Model saved to {model_file}")
+            torch.save(model.state_dict(), model_file)
         # Convert to PyTorch tensor and move to device
         input_tensor = torch.tensor(Udata, dtype=torch.float).to(device)
         with torch.no_grad():
@@ -277,7 +279,7 @@ def train_model(
     gc.collect()
 
     if save_bool:
-        np.save(save_path+"_kspace.npz",
-                arr=recon, allow_pickle=False)
+        os.makedirs(save_path, exist_ok=True)
+        np.savez(os.path.join(save_path, f"{prefix}_kspace"), arr=recon)
 
     return model, recon

@@ -567,6 +567,10 @@ def train_run_model_kae(kspace, params, model_class=cKAE, trainer_class=Trainer,
     )
     print(f"  Reconstruction: {time()-t0:.1f}s")
 
+    # Save checkpoint after training so it can be re-used later.
+    if 'save_path' in p and p['save_path']:
+        os.makedirs(p['save_path'], exist_ok=True)
+        torch.save({'model_state_dict': KAE.state_dict(), 'params': p}, os.path.join(p['save_path'], 'kae_model.pth'))
 
     if p.get('ACS_flag', True):
         mid = ny_k // 2

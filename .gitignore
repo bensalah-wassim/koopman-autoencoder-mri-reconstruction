@@ -1,0 +1,4 @@
+*.pth
+data/
+weights/koopman/
+weights/raki/

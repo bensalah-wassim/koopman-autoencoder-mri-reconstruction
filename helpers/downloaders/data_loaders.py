@@ -1,13 +1,15 @@
 import os
 import sys
+from pathlib import Path
 
 import h5py
 import numpy as np
 
-path = "E:/KAE"
-sys.path.append(os.path.dirname(os.path.abspath(path)))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-from KAE.helpers.preprocessing.preprocessing import (crop_in_image_space_multi_coil) # noqa: E402
+from helpers.preprocessing.preprocessing import crop_in_image_space_multi_coil  # noqa: E402
 
 
 # Load function

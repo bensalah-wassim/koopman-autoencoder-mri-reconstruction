@@ -42,7 +42,7 @@ def RAKI_run_save(
         kspace, acc_rate, number_columns,
         ACS_flag, device,
         save_path, slice, save_model=True,
-        lr=3e-3, epochs=3000):
+        lr=3e-3, epochs=3000, prefix=""):
 
     dim = kspace.shape
     torch.cuda.empty_cache()
@@ -71,7 +71,8 @@ def RAKI_run_save(
         lr=lr,
         silent=True,
         save_bool=save_model,
-        save_path=save_path
+        save_path=save_path,
+        prefix=prefix,
     )
     # IF ACS_flag is True, then we put back the calibration lines.
     if ACS_flag:
@@ -86,7 +87,7 @@ def RAKI_run_save(
 def infer_raki_NEW(
         kspace, path, slice,
         device, R, number_columns,
-        ACS_flag, epochs, lr):
+        ACS_flag, epochs, lr, prefix=""):
     """
     You need to complete that... >> To be continued >>
     """
@@ -142,8 +143,8 @@ def infer_raki_NEW(
         # Convert to PyTorch tensor and move to device
         input_tensor = torch.tensor(Udata, dtype=torch.float).to(device)
         RAKI_model = RAKI(R=R, nc=dim[0])
-        RAKI_model.load_state_dict(
-            torch.load(complete_path+f"coil_{coil}.pth"))
+        weight_path = os.path.join(complete_path, f"{prefix}coil_{coil}.pth")
+        RAKI_model.load_state_dict(torch.load(weight_path, map_location=device))
         RAKI_model = RAKI_model.to(device)
         RAKI_model.eval()
         with torch.no_grad():
@@ -198,23 +199,28 @@ def raki_recon_algo(
         ACS_flag, device,
         save_path, slice, filename="Brain_rand",
         lr=3e-3, epochs=3000):
-    txt = filename+f"_Slice_{slice}_R_{acc_rate}_ACS_{number_columns}_ACS_flag_{ACS_flag}_epochs_{epochs}_lr_{lr}_"
-    if save_path is not None:
-        filepath = save_path+txt+f"coil_{0}.pth"
-    if save_path is not None and os.path.exists(filepath):
-        # If the file exists, load the data
-        print(f"Loading RAKI weights from {save_path}")
+    save_dir = save_path
+    if save_dir is not None:
+        os.makedirs(save_dir, exist_ok=True)
+
+    txt = filename + f"_Slice_{slice}_R_{acc_rate}_ACS_{number_columns}_ACS_flag_{ACS_flag}_epochs_{epochs}_lr_{lr}_"
+    prefix = txt
+    filepath = os.path.join(save_dir, f"{prefix}coil_{0}.pth") if save_dir is not None else None
+
+    if save_dir is not None and os.path.exists(filepath):
+        print(f"Loading RAKI weights from {save_dir}")
         recon = infer_raki_NEW(
-                kspace, save_path+txt, slice,
+                kspace, save_dir, slice,
                 device, acc_rate, number_columns,
-                ACS_flag, epochs, lr)
+                ACS_flag, epochs, lr, prefix=prefix)
     else:
-        print(f"Training model and saving the weights at {save_path}")
+        print(f"Training model and saving the weights at {save_dir}")
         recon = RAKI_run_save(
             kspace, acc_rate, number_columns,
             ACS_flag, device,
-            save_path+txt, slice=slice,
-            lr=lr, epochs=epochs)
+            save_dir, slice=slice,
+            lr=lr, epochs=epochs, prefix=prefix)
+
     channels = kspace.shape[0]
     recon = recon[:channels, :, :] + 1j * recon[channels:, :, :]
 
